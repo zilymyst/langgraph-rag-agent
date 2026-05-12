@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "C:/Users/hxhnz/Desktop/RAG/RAG/rag-assistant-main/__pycache__"
+		},
+		{
+			"path": "C:/Users/hxhnz/Desktop/RAG/RAG/rag-assistant-main/chroma_db"
+		},
+		{
+			"path": "C:/Users/hxhnz/Desktop/RAG/RAG/rag-assistant-main/static"
+		},
+		{
+			"path": "C:/Users/hxhnz/Desktop/RAG/RAG/rag-assistant-main/uploads"
+		},
+		{
+			"path": "C:/Users/hxhnz/Desktop/RAG/RAG/rag-assistant-main/venv"
+		}
+	]
+}
