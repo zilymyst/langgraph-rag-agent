@@ -53,16 +53,31 @@ if collection.count() == 0:
 # 4. 执行查询
 def retrieve(state):
     query = state["query"]
-    search_result = collection.query(
-        query_texts=[query],
-        n_results=1
-    )
-    if search_result["documents"] and search_result["documents"][0]:
-        context = search_result["documents"][0][0]
+    
+    # 一、关键词检索
+    all_docs = collection.get()
+    keyword_matches = []
+    for doc in all_docs["documents"]:
+        if any(word in doc for word in query):
+            keyword_matches.append(doc)
+    
+    # 二、向量检索
+    vector_result = collection.query(query_texts=[query], n_results=2)
+    
+    # 三、合并结果（关键词优先，向量补充）
+    combined = keyword_matches.copy()  # 先把关键词命中的放进去
+    if vector_result["documents"] and vector_result["documents"][0]:
+        for doc in vector_result["documents"][0]:
+            if doc not in combined:  # 去重
+                combined.append(doc)
+    
+    # 四、取前两条作为最终上下文
+    if combined:
+        context = "\n\n".join(combined[:2])
     else:
         context = "未找到相关资料。"
-    return {"context": context}
-# ===== 生成回答节点（修改后） =====
+    
+    return {"context": context}# ===== 生成回答节点（修改后） =====
 def generate(state):
     query = state["query"]
     context = state["context"]
