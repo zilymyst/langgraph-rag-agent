@@ -14,6 +14,7 @@ class State(TypedDict):
     query: str
     context: str
     answer: str
+    mode: str
 
 # 加载环境变量
 load_dotenv()
@@ -29,38 +30,66 @@ chroma_client = chromadb.PersistentClient(path="./chroma_db")
 #results = retrieve("你的查询内容")
 
 
+
 def generate(state):
     query = state["query"]
-    context = state["context"]
-    
-    if context == "__chat__":
-        response = completion(
-            model="deepseek/deepseek-v4-flash",
-            messages=[
-                {"role": "system", "content": "你是一个友好的助手。请直接回答用户的闲聊问题。"},
-                {"role": "user", "content": query}
-            ],
-            api_key=os.environ.get('DEEPSEEK_API_KEY')
-        )
+    context = state.get("context", "")
+    mode = state.get("mode", "rag")
+
+    if mode == "chat":
+        prompt = f"""
+你是一个友好的 AI 助手。
+用户：
+{query}
+"""
     else:
-        response = completion(
-        model="deepseek/deepseek-v4-flash",
-        messages=[
-            {"role": "system", "content": "你是一个擅长总结和提炼信息的助手。请根据提供的资料，用精炼的语言回答用户的问题。不要简单复述原文，要对信息进行归纳、总结和补充（如果资料充足）。如果资料不足以回答问题，请如实说明。"},
-            {"role": "user", "content": f"资料：{context}\n\n问题：{query}"},
-        ],
-        api_key=os.environ.get('DEEPSEEK_API_KEY')
+        prompt = f"""
+请基于资料回答问题。
+资料：
+{context}
+问题：
+{query}
+"""
+
+    response = completion(
+        model="deepseek/deepseek-chat",
+        messages=[{"role": "user", "content": prompt}]
     )
-    
+
     answer = response.choices[0].message.content
     return {"answer": answer}
+    
 # ===== 查询路由节点 =====
 def router(state):
+
+
     query = state["query"]
-    chat_words = ["你好", "谢谢", "再见", "怎么样", "你是谁", "哈哈", "早上好", "晚上好", "hi", "hello", "hey", "在吗", "在不在"]
-    if any(word in query for word in chat_words):
-        return {"context": "__chat__"}
+
+    chat_words = [
+        "你好",
+        "谢谢",
+        "再见",
+        "哈哈",
+        "你是谁",
+        "hi",
+        "hello",
+        "hey"
+    ]
+
+    # 聊天
+    if any(word in query.lower() for word in chat_words):
+
+        print("进入聊天模式")
+
+        state["mode"] = "chat"
+        return state
+
+    # 默认知识问答
     else:
+
+        print("进入 RAG 模式")
+
+        state["mode"] = "rag"
         return state
 # ===== 构建 LangGraph 图 =====
 workflow = StateGraph(State)

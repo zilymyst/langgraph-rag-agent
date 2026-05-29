@@ -1,3 +1,5 @@
+from statistics import mode
+
 from db.chroma import get_collection
 import jieba
 
@@ -47,76 +49,42 @@ def score_document(doc, words):
 
 
 # 检索主函数
-def retrieve(query):
+def retrieve(state):    
+    print("当前 state:", state)
+    mode = state.get("mode", "rag")
+    print("当前 mode:", mode)
+    
+    if mode == "chat":        
+        print("聊天模式，不执行检索")        
+        return {"context": ""}
 
-    # LangGraph 传入的是 state dict
-    if isinstance(query, dict):
-        query_text = query.get("query", "")
-    else:
-        query_text = str(query)
-
-    print("\n========== RETRIEVE ==========")
-
-    # 用户问题
+    query_text = state["query"]    
+    print("\n========== RETRIEVE ==========")    
     print("用户问题:", query_text)
 
-    # ===== 一、向量检索 =====
-    vector_result = collection.query(
-        query_texts=[query_text],
-        n_results=2
-    )["documents"][0]
+    # 向量检索    
+    vector_result = collection.query(query_texts=[query_text], n_results=2)["documents"][0]
 
-    print("向量检索结果:", vector_result)
+    # 关键词检索    
+    words = split_query(query_text)    
+    all_docs = collection.get(include=["documents"])["documents"]    
+    keyword_scores = [(doc, score_document(doc, words)) for doc in all_docs if score_document(doc, words) > 0]    
+    keyword_result = [x[0] for x in sorted(keyword_scores, key=lambda x: x[1], reverse=True)[:2]]
 
-    # ===== 二、关键词检索 =====
-    words = split_query(query_text)
+    # Hybrid 合并    
+    enriched_context = []    
+    for doc in set(vector_result + keyword_result):        
+        index = all_docs.index(doc)        
+        start = max(0, index - 1)        
+        end = min(len(all_docs), index + 2)        
+        enriched_context.extend(all_docs[start:end])
 
-    print("过滤后分词:", words)
+    # 去重    
+    enriched_context = list(dict.fromkeys(enriched_context))    
+    context = "\n\n".join(enriched_context)
 
-    all_docs = collection.get(include=["documents"])["documents"]
+    
+    print("最终 context:", context)    
+    print("========== END ==========")
 
-    keyword_scores = []
-
-    for doc in all_docs:
-
-        score = score_document(doc, words)
-
-        if score > 0:
-            keyword_scores.append((doc, score))
-
-    # 按分数排序
-    keyword_scores = sorted(
-        keyword_scores,
-        key=lambda x: x[1],
-        reverse=True
-    )
-
-    print("关键词得分:", keyword_scores)
-
-    # 取前2
-    keyword_result = [
-        x[0]
-        for x in keyword_scores[:2]
-    ]
-
-    print("关键词检索结果:", keyword_result)
-
-    # ===== 三、Hybrid 合并 =====
-    merged_docs = vector_result + keyword_result
-
-    # 去重
-    merged_docs = list(dict.fromkeys(merged_docs))
-
-    print("Hybrid 合并结果:", merged_docs)
-
-    # ===== 四、拼接 context =====
-    context_text = "\n\n".join(merged_docs)
-
-    print("最终 context:", context_text)
-
-    print("========== END ==========\n")
-
-    # LangGraph 节点必须返回 dict
-    return {
-        "context": context_text
-    }
+    return {"context": context}
