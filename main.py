@@ -3,6 +3,7 @@ os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 from litellm import completion, query
 
 import chromadb
+from rag.retrieve import retrieve
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
 from typing import TypedDict
@@ -24,60 +25,10 @@ siliconflow_ef = embedding_functions.OpenAIEmbeddingFunction(
 )
 
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_or_create_collection(
-    name="default",
-    embedding_function=siliconflow_ef
-)
-# 3. 检查集合是否为空，如果为空则添加一些测试数据
-if collection.count() == 0:
-    print("正在从文件加载知识库...")
 
-     # 读取 test.txt 文件
-    md = MarkItDown()
-    result = md.convert("test.txt")
-    content = result.text_content
+#results = retrieve("你的查询内容")
 
-     # 按段落切分（空行分隔）
-    paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-    
-    print(f"共提取到 {len(paragraphs)} 个段落")
-    
-    # 逐段存入 Chroma
-    for i, p in enumerate(paragraphs):
-        collection.add(
-            documents=[p],
-            ids=[f"doc_{i}"]
-        )
-    
-    print("知识库加载完成！")
-# 4. 执行查询
-def retrieve(state):
-    query = state["query"]
-    
-    # 一、关键词检索
-    all_docs = collection.get()
-    keyword_matches = []
-    for doc in all_docs["documents"]:
-        if any(word in doc for word in query):
-            keyword_matches.append(doc)
-    
-    # 二、向量检索
-    vector_result = collection.query(query_texts=[query], n_results=2)
-    
-    # 三、合并结果（关键词优先，向量补充）
-    combined = keyword_matches.copy()  # 先把关键词命中的放进去
-    if vector_result["documents"] and vector_result["documents"][0]:
-        for doc in vector_result["documents"][0]:
-            if doc not in combined:  # 去重
-                combined.append(doc)
-    
-    # 四、取前两条作为最终上下文
-    if combined:
-        context = "\n\n".join(combined[:2])
-    else:
-        context = "未找到相关资料。"
-    
-    return {"context": context}# ===== 生成回答节点（修改后） =====
+
 def generate(state):
     query = state["query"]
     context = state["context"]
