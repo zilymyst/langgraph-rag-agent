@@ -54,9 +54,7 @@ def retrieve(state):
     mode = state.get("mode", "rag")
     print("当前 mode:", mode)
     
-    if mode == "chat":        
-        print("聊天模式，不执行检索")        
-        return {"context": ""}
+    
 
     query_text = state["query"]    
     print("\n========== RETRIEVE ==========")    

@@ -82,6 +82,7 @@ def router(state):
         print("进入聊天模式")
 
         state["mode"] = "chat"
+        state["context"] = "__chat__"
         return state
 
     # 默认知识问答
@@ -90,6 +91,7 @@ def router(state):
         print("进入 RAG 模式")
 
         state["mode"] = "rag"
+        state["context"] = ""
         return state
 # ===== 构建 LangGraph 图 =====
 workflow = StateGraph(State)
@@ -107,10 +109,10 @@ workflow.set_entry_point("router")
 # - 否则走 retrieve
 workflow.add_conditional_edges(
     "router",
-    lambda state: "retrieve" if state.get("context") == "" or state.get("context") is None else "generate",
+    lambda state: state["mode"],
     {
-        "retrieve": "retrieve",
-        "generate": "generate"
+        "chat": "generate",
+        "rag": "retrieve"
     }
 )
 
